@@ -1,0 +1,21 @@
+node_modules/
+
+# Local SQLite database, rebuilt from seed/tasks.json on first api start.
+# seed/tasks.json itself is committed on purpose and must never be ignored.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Vite build output
+apps/web/dist/
+dist/
+
+# Misc
+.DS_Store
+*.log
+
+# One-off seed generator, not part of the delivered repo.
+scripts/generate-seed.ts

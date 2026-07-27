@@ -1,0 +1,20 @@
+{
+  "name": "propely-fullstack-case",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
