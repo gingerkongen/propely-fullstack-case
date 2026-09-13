@@ -2,6 +2,8 @@ import type { Task } from './types';
 
 import { CATEGORY_LABELS, STATUS_LABELS } from './labels';
 
+const nok = new Intl.NumberFormat('nb-NO');
+
 export interface TaskColumn {
   header: string;
   /** The cell text. The table and the PDF both use it, so they always show the same values. */
@@ -23,7 +25,7 @@ export const TASK_COLUMNS: TaskColumn[] = [
   { header: 'Frist', text: (task) => task.due_date ?? '—', className: 'whitespace-nowrap text-slate-600' },
   {
     header: 'Kostnad (NOK)',
-    text: (task) => (task.cost_nok === null ? '—' : String(task.cost_nok)),
+    text: (task) => (task.cost_nok === null ? '—' : nok.format(task.cost_nok)),
     className: 'whitespace-nowrap text-right',
   },
 ];
