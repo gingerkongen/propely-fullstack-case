@@ -1,167 +1,125 @@
-# Propely Fullstack Engineer Case: Starter repo
+# Propely fullstack case
 
-A deliberately plain starting point for the technical case assignment. It gives you a
-local API serving 1000 property maintenance tasks and a React page that
-dumps all of them into a table. Nothing more.
-
-This repo intentionally does **not** contain filtering, search, pagination or PDF
-export, and it does not resolve property names. Building that is the assignment (full
-requirements at the bottom).
+A table of 1000 maintenance tasks across 40 properties, with property names, filtering, free-text search, pagination and PDF export. Express + SQLite API, React + Vite + Tailwind web app.
 
 ## Getting started
 
-Requires **Node 22 or newer**. Any way of installing it works, and nvm is not required.
-If you do use nvm, `.nvmrc` pins the version for you:
+Requires Node 22+ (`.nvmrc` pins it if you use nvm).
 
 ```bash
-nvm use            # optional, picks up Node 22 from .nvmrc
 npm install
+npm run dev:api    # http://localhost:8080
+npm run dev:web    # http://localhost:3000 (second terminal)
 ```
 
-Then start the two apps in **two separate terminals**:
+The API builds `apps/api/tasks.db` from `seed/` on first start, and rebuilds it when the schema version changes. Delete the file to reset. The web app calls the API at `VITE_API_BASE_URL` (default `http://localhost:8080`).
 
 ```bash
-npm run dev:api    # terminal 1
-npm run dev:web    # terminal 2
+npm run test                            # API tests (Vitest)
+npm run typecheck --workspace apps/api  # or apps/web
 ```
 
+## The assignment
 
-| App                | URL                                            | Notes                                          |
-| ------------------ | ---------------------------------------------- | ---------------------------------------------- |
-| API (Express)      | [http://localhost:8080](http://localhost:8080) | run with `tsx`, no build step in dev           |
-| Web (Vite + React) | [http://localhost:3000](http://localhost:3000) | proxies nothing; calls the API by absolute URL |
+| Requirement                                       | Solution                                                                                |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Property name instead of id                       | The API joins `properties`; the table shows the name                                    |
+| Filter on status, category and property, combined | Multi-select status, category and property, plus created date, due date and cost ranges |
+| Free-text search that works with the filters      | Title and property name, with or without æøå                                            |
+| Pagination                                        | 50 per page, done in the API                                                            |
+| Download as PDF, reflecting filters and search    | Current page or all matches, same columns as the table                                  |
 
+## API
 
-On first start the API creates `apps/api/tasks.db` from `seed/tasks.json` and
-`seed/properties.json`. The db file is gitignored and rebuilt from the seed, so you can
-always get back to a clean dataset: delete the file and restart the API.
-
-`npm run test` exists and exits 0. There are no tests yet.
-
-## API contract
-
-Current endpoints. You are free to change or replace them (see below).
-
-### `GET /api/health`
+**`POST /api/tasks/search`**. Every field is optional:
 
 ```json
-{ "status": "ok" }
+{
+  "statuses": ["New", "InProgress"],
+  "categories": [],
+  "property_ids": ["prop-011"],
+  "created_from": "2025-01-01",
+  "created_to": null,
+  "due_from": null,
+  "due_to": null,
+  "cost_min": 10000,
+  "cost_max": null,
+  "q": "lekkasje",
+  "page": 1,
+  "page_size": 50
+}
 ```
 
+An empty list or `null` means no filter. Values within a list are OR'ed, filters are AND'ed, and ranges are inclusive and leave out tasks without a value. `page_size` defaults to 50 (max 1000). Invalid input gives a `400`.
 
+Returns `{ items, total, page, page_size }`, newest first. Each item is a task plus `property_name`.
 
-### `GET /api/tasks`
+**`GET /api/tasks/filter-options`** returns the statuses, categories and the properties that have tasks, in Norwegian sort order.
 
-Takes **no query parameters** and returns **all 1000 rows** as a JSON array in a
-single response. No pagination and no filtering. This is deliberate.
+**`GET /api/health`** returns `{ "status": "ok" }`.
 
-Note that a task row carries `property_id`, not a property name. 
+## Data
 
-```json
-[
-  {
-    "id": "task-0001",
-    "title": "Skifte lyskilder til LED i garasje",
-    "description": "Midlertidig løsning på plass. Permanent utbedring gjenstår.",
-    "category": "Electrical",
-    "status": "InProgress",
-    "property_id": "prop-004",
-    "created_at": "2025-12-25",
-    "due_date": "2026-03-01",
-    "cost_nok": 8100
-  }
-]
+Two tables, built from `seed/`. The seed files are fixed input and never modified.
+
+- `properties(id, name, name_search)`
+- `tasks(id, title, description, category, status, property_id, created_at, due_date, cost_nok, title_search)`
+
+`name_search` and `title_search` are generated columns with a folded copy of the text for search. The data is deliberately messy: Norwegian characters, property names of 70+ characters, long compound words, ~22% of tasks without a due date, ~12% without a cost, and a skewed status distribution.
+
+## Structure
+
+```
+apps/api/src
+  app.ts            routes and request validation (zod)
+  taskQueries.ts    the search query: filters, search, paging, filter options
+  db.ts             schema and seeding, registers fold()
+  fold.ts           text normalization for search
+apps/web/src
+  App.tsx           state and debounced search requests
+  TaskFilters.tsx   search box and filter dropdowns
+  TaskTable.tsx     the table
+  columns.ts        columns shared by the table and the PDF
+  Pagination.tsx
+  PdfExport.tsx     export buttons; exportPdf.ts builds the PDF
+seed/               fixed input
 ```
 
-CORS is wide open (all origins), which covers the Vite dev server. There is no auth.
+## My notes
 
-## Data model
+### Starting plan
 
-Two tables in a single local SQLite file (`better-sqlite3`): `tasks` and `properties`.
-`tasks.property_id` is a foreign key into `properties.id`, and the task row holds no property name of its own.
+Before writing code I planned one POST filter endpoint for tasks 2-4, returning a first page of 50 with no filter, and a search column that matches with and without æøå, driven by an SQL function if SQLite allowed it. It did: better-sqlite3 can register JS functions in SQLite, so nothing had to be simulated. Along the way the search columns ended up on both tables, since search covers titles and property names, and the filters grew to dates and cost.
 
-### `properties`
+### How I worked
 
+- One branch and PR per requirement, merged with merge commits so each step shows in the history.
+- Fixed some of the starter code before building on it.
+- Tests sit where the logic is. The query tests run filter combinations against the real seed and compare the result with the same filter written in plain JS. The web app was checked in a browser against the seed data.
 
-| Column | Type | Null | Notes                                                  |
-| ------ | ---- | ---- | ------------------------------------------------------ |
-| `id`   | TEXT | no   | primary key, e.g. `prop-011`                           |
-| `name` | TEXT | no   | Norwegian free text, 40 rows, some 70 to 90 chars long |
+### Agentic coding
 
+I used Claude Code as a coding agent. I planned the work and made the calls, it implemented them branch by branch, and I reviewed diffs and PRs. It also checked its own work: typecheck and tests after each change, SQL ideas tried in throwaway scripts against a plain JS version before they went in, the built app driven in headless Chrome to check filters, search, paging and the PDF against the seed data, and each commit replayed on its own to confirm it builds and passes. The browser checks were throwaway scripts, so they aren't in the repo.
 
+### Decisions
 
+- Filtering, search and paging happen in the API. Once the server paginates, filtering has to happen there too, or you only filter the 50 rows the client has.
+- Search is `POST /api/tasks/search` with a JSON body, not GET with query params. This is simply due to the benifits of having a body, and not being constrained to the url
+- One static SQL statement covers every filter combination.
+- Search works with and without æøå. SQLite's `LIKE` and `lower()` only fold ASCII, so `åkerveien` doesn't match `Åkerveien`, and FTS5 handles å but not æ and ø. `fold()` (lowercase, æ to ae, ø to o, accents stripped) is registered as an SQL function and fills two generated columns. The search term goes through the same function. Folding on write costs about 36 KB, but searches are far more frequent than writes, and SQLite keeps the columns in sync on every insert and update.
+- The PDF is built in the client. Simply because its cheaper and simpler than us generating it ourself on the server
 
-### `tasks`
+### Compared to a previous project
 
+At a previous employer (Postgres and .NET) I built a property filter and an address search over ~4.5M properties.
 
-| Column        | Type    | Null    | Notes                                                  |
-| ------------- | ------- | ------- | ------------------------------------------------------ |
-| `id`          | TEXT    | no      | primary key                                            |
-| `title`       | TEXT    | no      | Norwegian free text                                    |
-| `description` | TEXT    | no      | Norwegian free text, mostly short, some 400–800 chars  |
-| `category`    | TEXT    | no      | enum, CHECK constraint                                 |
-| `status`      | TEXT    | no      | enum, CHECK constraint                                 |
-| `property_id` | TEXT    | no      | foreign key into `properties.id`, unevenly distributed |
-| `created_at`  | TEXT    | no      | ISO 8601 date, spread across 2022–2026                 |
-| `due_date`    | TEXT    | **yes** | ISO 8601 date, null in ~19 % of rows                   |
-| `cost_nok`    | INTEGER | **yes** | 300 – ~470 000, null in ~12 % of rows                  |
+- The filter was one parameterized SQL function over a materialized view with one denormalized row per property, refreshed daily. `NULL` or an empty array meant no filter. A thin POST endpoint called it, and an options endpoint listed the valid values.
+- The address search used a column holding the raw and the unaccented text, kept up to date by a trigger, with a `pg_trgm` index and similarity ranking.
 
+For the current Propely project I took inspiration from this, and reused the static query where empty means no filter, the POST filter body, and an options endpoint that only lists values present in the data. I skipped the materialized views, since the current data model neither need them nor really allow them. I also used generated columns instead of a trigger, since the text to fold sits in the same row.
 
+### Known gaps
 
-
-### Seed data
-
-`seed/tasks.json` is the single source of truth for the dataset, and is never
-regenerated at runtime. The data is deliberately messy: Norwegian characters, long
-property names, long compound words, some very long descriptions, nulls, a wide cost
-range and a skewed status distribution (roughly 55 % Completed, 22 % InProgress,
-20 % New, 3 % Rejected). Expect it to stress your table layout and formatting.
-
-Please treat `seed/tasks.json` and `seed/properties.json` as fixed input and leave them
-as they are. The data is meant to be awkward, and working with it as-is is part of the
-exercise.
-
-## Your assignment
-
-Extend the existing task table with new features/improvements. Use no more than 1 to 3 hours.
-
-All five of the following are **required**:
-
-1. **Show the property name, not the id.** The table currently prints the raw
-  `property_id` (`prop-011`). It should show the property name (`Åkerveien 3`).
-2. **Filtering.** The user must be able to narrow the table by at least `status`,
-  `category` and property. Multiple filters must work together.
-3. **Search.** A free-text search across some columns (at minimum `title`, and
-  ideally `property`_id). It must work together with the filters.
-4. **Pagination.** The table must be paginated rather than rendering all 1000 rows at
-  once. Page size is up to you.
-5. **A "Download as PDF" button** that exports the task table as a PDF. The export must
-  reflect what the user is currently looking at, so the active filters and search apply  to it.
-
-
-
-### How you build it is up to you
-
-- add any dependencies you want
-- change the API however you like, including adding, changing or replacing endpoints
-- change or restructure the frontend however you like
-
-
-
-### Out of scope
-
-- Authentication
-- Design beyond plain readability
-- Deployment
-- Tests beyond what proves your core logic works
-
-
-
-### Practical notes
-
-- Everything runs locally. No cloud service or signup is needed for anything.
-- We want to see **several commits along the way**, not one large commit at the end.  
-Commit as you go so we can follow your reasoning.
-- Share your Github repo with "Lunke" (Kristoffer Lundquist) or send a link.
-- Bring your computer with the case to the meeting, so we can discuss it and improve it together.
-
+- Filter state isn't in the URL, so a refresh resets it.
+- The API and web keep separate copies of the types. A shared package, or types generated from the zod schema, would fix that.
+- No unit tests on the web side.
