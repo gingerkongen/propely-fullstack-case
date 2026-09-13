@@ -14,6 +14,7 @@ export const EMPTY_FILTER: TaskFilter = {
   due_to: null,
   cost_min: null,
   cost_max: null,
+  q: null,
 };
 
 /** Adds the value if it is missing, removes it if it is there. */
@@ -51,6 +52,15 @@ export function TaskFilters({ options, filter, onChange }: TaskFiltersProps) {
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
+      <input
+        type="search"
+        aria-label="Søk"
+        placeholder="Søk i tittel og eiendom …"
+        value={filter.q ?? ''}
+        onChange={(event) => update({ q: event.target.value || null })}
+        className="w-64 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
+      />
+
       <FilterDropdown
         label="Status"
         summary={summarizeList(filter.statuses.map((status) => STATUS_LABELS[status]))}
