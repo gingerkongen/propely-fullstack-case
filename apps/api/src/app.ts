@@ -1,10 +1,14 @@
 import type Database from 'better-sqlite3';
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
-import type { Task } from './types.js';
+import type { TaskWithProperty } from './types.js';
 
 export function createApp(db: Database.Database) {
-  const selectAllTasks = db.prepare<[], Task>('SELECT * FROM tasks');
+  const selectAllTasks = db.prepare<[], TaskWithProperty>(`
+    SELECT t.*, p.name AS property_name
+    FROM tasks t
+    JOIN properties p ON p.id = t.property_id
+  `);
 
   const app = express();
 

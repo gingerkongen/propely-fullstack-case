@@ -33,6 +33,11 @@ export interface Task {
   cost_nok: number | null;
 }
 
+/** A task joined with the name of its property, as returned by the API. */
+export interface TaskWithProperty extends Task {
+  property_name: string;
+}
+
 /** A property that tasks belong to, as stored in SQLite. */
 export interface Property {
   id: string;
