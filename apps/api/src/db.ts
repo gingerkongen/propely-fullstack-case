@@ -1,14 +1,15 @@
 /**
  * SQLite setup.
  *
- * The database file is gitignored. On startup, if it does not exist, it is built
- * from the committed seed/tasks.json, which is the single source of truth for the
- * dataset. Data is never generated at runtime.
+ * The database file is gitignored. On startup, if it does not exist or its schema is
+ * outdated, it is (re)built from the committed seed/tasks.json, which is the single
+ * source of truth for the dataset. Data is never generated at runtime.
  */
 
 import Database from 'better-sqlite3';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fold } from './fold.js';
 import {
   TASK_CATEGORIES,
   TASK_STATUSES,
@@ -24,10 +25,16 @@ const PROPERTIES_SEED_PATH = join(REPO_ROOT, 'seed', 'properties.json');
 const sqlList = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(', ');
 
+/** Bump when CREATE_TABLES_SQL changes, so existing databases get rebuilt from the seed. */
+const SCHEMA_VERSION = 1;
+
+// The *_search columns hold fold()ed copies for accent-insensitive search (see fold.ts).
+// STORED: computed once on insert instead of on every query.
 const CREATE_TABLES_SQL = `
   CREATE TABLE properties (
-    id   TEXT PRIMARY KEY,
-    name TEXT NOT NULL
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    name_search TEXT GENERATED ALWAYS AS (fold(name)) STORED
   );
 
   CREATE TABLE tasks (
@@ -39,7 +46,8 @@ const CREATE_TABLES_SQL = `
     property_id   TEXT NOT NULL REFERENCES properties(id),
     created_at    TEXT NOT NULL,
     due_date      TEXT,
-    cost_nok      INTEGER
+    cost_nok      INTEGER,
+    title_search  TEXT GENERATED ALWAYS AS (fold(title)) STORED
   );
 `;
 
@@ -67,6 +75,8 @@ function buildFromSeed(db: Database.Database): void {
   const properties = JSON.parse(readFileSync(PROPERTIES_SEED_PATH, 'utf8')) as Property[];
   const tasks = JSON.parse(readFileSync(TASKS_SEED_PATH, 'utf8')) as Task[];
 
+  // An outdated database is rebuilt from scratch; the seed is the source of truth.
+  db.exec('DROP TABLE IF EXISTS tasks; DROP TABLE IF EXISTS properties;');
   db.exec(CREATE_TABLES_SQL);
 
   const insertProperty = db.prepare(INSERT_PROPERTY_SQL);
@@ -77,19 +87,22 @@ function buildFromSeed(db: Database.Database): void {
     for (const task of tasks) insertTask.run(task);
   });
   insertAll();
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
 
   console.log(
     `Built ${db.name} from seed (${properties.length} properties, ${tasks.length} tasks).`,
   );
 }
 
-/** Opens (and seeds, if new) the database. Tests pass ':memory:' for a fresh, isolated copy. */
+/** Opens (and seeds, if new or outdated) the database. Tests pass ':memory:' for a fresh copy. */
 export function openDatabase(path: string = DB_PATH): Database.Database {
-  const needsSeed = !existsSync(path);
   const db = new Database(path);
   db.pragma('foreign_keys = ON');
+  // Needed on every connection: inserts compute the generated *_search columns with it.
+  db.function('fold', { deterministic: true }, fold);
 
-  if (needsSeed) {
+  // A new file (or ':memory:') has user_version 0, so this also covers the first start.
+  if (db.pragma('user_version', { simple: true }) !== SCHEMA_VERSION) {
     buildFromSeed(db);
   }
 
