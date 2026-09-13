@@ -14,11 +14,8 @@ const COLUMNS = [
   'Kostnad (NOK)',
 ] as const;
 
-/** Renders every task in a plain table. No filtering or pagination. */
+/** Renders the given tasks. Filtering and sorting (newest first) happen in the API. */
 export function TaskTable({ tasks }: { tasks: Task[] }) {
-  // Newest first.
-  const rows = [...tasks].sort((a, b) => b.created_at.localeCompare(a.created_at));
-
   return (
     <div className="overflow-x-auto rounded border border-slate-200 bg-white">
       <table className="w-full border-collapse text-left text-sm">
@@ -32,7 +29,7 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((task) => (
+          {tasks.map((task) => (
             <tr key={task.id} className="border-t border-slate-200 align-top">
               <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-500">
                 {task.id}

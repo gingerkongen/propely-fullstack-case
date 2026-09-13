@@ -28,3 +28,35 @@ export interface Task {
   due_date: string | null;
   cost_nok: number | null;
 }
+
+export interface Property {
+  id: string;
+  name: string;
+}
+
+/** Body of POST /api/tasks/search. An empty list or a null bound means no filter on that column. */
+export interface TaskFilter {
+  statuses: TaskStatus[];
+  categories: TaskCategory[];
+  property_ids: string[];
+  /** ISO dates (YYYY-MM-DD), both ends inclusive. */
+  created_from: string | null;
+  created_to: string | null;
+  due_from: string | null;
+  due_to: string | null;
+  /** Whole kroner, both ends inclusive. */
+  cost_min: number | null;
+  cost_max: number | null;
+}
+
+export interface TaskSearchResult {
+  items: Task[];
+  total: number;
+}
+
+/** Response of GET /api/tasks/filter-options. */
+export interface FilterOptions {
+  statuses: TaskStatus[];
+  categories: TaskCategory[];
+  properties: Property[];
+}

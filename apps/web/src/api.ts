@@ -1,18 +1,24 @@
-import type { Task } from './types';
+import type { FilterOptions, TaskFilter, TaskSearchResult } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
-// Tasks change rarely, so we only hit the API once per session.
-let cache: Task[] | null = null;
-
-export async function fetchTasks(): Promise<Task[]> {
-  if (cache) return cache;
-
-  const response = await fetch(`${API_BASE_URL}/api/tasks`);
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, init);
   if (!response.ok) {
     throw new Error(`API responded with ${response.status}`);
   }
-  cache = (await response.json()) as Task[];
+  return (await response.json()) as T;
+}
 
-  return cache;
+export function fetchFilterOptions(): Promise<FilterOptions> {
+  return request('/api/tasks/filter-options');
+}
+
+export function searchTasks(filter: TaskFilter, signal?: AbortSignal): Promise<TaskSearchResult> {
+  return request('/api/tasks/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(filter),
+    signal,
+  });
 }
