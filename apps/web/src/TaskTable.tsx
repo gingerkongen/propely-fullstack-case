@@ -45,7 +45,7 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
               </td>
               <td className="whitespace-nowrap px-3 py-2 text-slate-600">{task.created_at}</td>
               <td className="whitespace-nowrap px-3 py-2 text-slate-600">{task.due_date ?? '—'}</td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">{task.cost_nok || '—'}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-right">{task.cost_nok ?? '—'}</td>
             </tr>
           ))}
         </tbody>
