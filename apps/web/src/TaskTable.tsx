@@ -1,5 +1,7 @@
 import type { Task } from './types';
 
+import { CATEGORY_LABELS, STATUS_LABELS } from './labels';
+
 const COLUMNS = [
   'ID',
   'Tittel',
@@ -38,8 +40,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
               <td className="px-3 py-2">{task.title}</td>
               {/* Descriptions may contain line breaks from the old system; pre-line keeps them. */}
               <td className="whitespace-pre-line px-3 py-2 text-slate-600">{task.description}</td>
-              <td className="whitespace-nowrap px-3 py-2">{task.category}</td>
-              <td className="whitespace-nowrap px-3 py-2">{task.status}</td>
+              <td className="whitespace-nowrap px-3 py-2">{CATEGORY_LABELS[task.category]}</td>
+              <td className="whitespace-nowrap px-3 py-2">{STATUS_LABELS[task.status]}</td>
               {/* Some property names are 70+ chars, so let them wrap. */}
               <td className="min-w-48 px-3 py-2">{task.property_name}</td>
               <td className="whitespace-nowrap px-3 py-2 text-slate-600">{task.created_at}</td>
