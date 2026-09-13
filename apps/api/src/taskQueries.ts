@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { escapeLike } from './fold.js';
 import {
   TASK_CATEGORIES,
   TASK_STATUSES,
@@ -21,6 +22,8 @@ export interface TaskFilter {
   /** Whole kroner, both ends inclusive. */
   cost_min: number | null;
   cost_max: number | null;
+  /** Free text, matched anywhere in the title or property name, with or without æøå. */
+  q: string | null;
 }
 
 export interface TaskSearchResult {
@@ -37,7 +40,8 @@ export interface FilterOptions {
 // One static statement covers every filter combination. SQLite can't bind arrays, so each
 // list arrives as a JSON array and json_each expands it; an empty array disables that condition.
 // A null bound disables its condition; once a bound is set, rows with no value (NULL) drop out.
-// ISO date strings compare correctly as text.
+// ISO date strings compare correctly as text. The search folds the query with the same fold()
+// that filled the *_search columns, so both sides are compared in the same form.
 const SEARCH_SQL = `
   SELECT t.id, t.title, t.description, t.category, t.status, t.property_id,
          p.name AS property_name, t.created_at, t.due_date, t.cost_nok
@@ -52,6 +56,9 @@ const SEARCH_SQL = `
     AND (@due_to       IS NULL OR t.due_date   <= @due_to)
     AND (@cost_min     IS NULL OR t.cost_nok   >= @cost_min)
     AND (@cost_max     IS NULL OR t.cost_nok   <= @cost_max)
+    AND (@q IS NULL
+         OR t.title_search LIKE '%' || fold(@q) || '%' ESCAPE '\\'
+         OR p.name_search  LIKE '%' || fold(@q) || '%' ESCAPE '\\')
   ORDER BY t.created_at DESC, t.id DESC
 `;
 
@@ -79,6 +86,7 @@ export function createTaskQueries(db: Database.Database) {
         statuses: JSON.stringify(filter.statuses),
         categories: JSON.stringify(filter.categories),
         property_ids: JSON.stringify(filter.property_ids),
+        q: filter.q === null ? null : escapeLike(filter.q),
       });
       return { items, total: items.length };
     },

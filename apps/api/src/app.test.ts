@@ -51,6 +51,26 @@ describe('POST /api/tasks/search', () => {
     expect(res.status).toBe(400);
   });
 
+  it('searches with the text from the body and treats a blank search as none', async () => {
+    const app = newApp();
+
+    const searched = await request(app).post('/api/tasks/search').send({ q: 'Åkerveien' });
+    const blank = await request(app).post('/api/tasks/search').send({ q: '   ' });
+
+    expect(searched.status).toBe(200);
+    expect(searched.body.total).toBeGreaterThan(0);
+    expect(searched.body.total).toBeLessThan(1000);
+    expect(blank.body.total).toBe(1000);
+  });
+
+  it('rejects searches longer than 200 characters', async () => {
+    const res = await request(newApp())
+      .post('/api/tasks/search')
+      .send({ q: 'a'.repeat(201) });
+
+    expect(res.status).toBe(400);
+  });
+
   it('rejects unknown keys, so a typo does not silently skip a filter', async () => {
     const res = await request(newApp())
       .post('/api/tasks/search')

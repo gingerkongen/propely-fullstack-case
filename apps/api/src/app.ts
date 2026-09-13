@@ -19,6 +19,14 @@ const taskFilterSchema = z.strictObject({
   due_to: isoDate,
   cost_min: kroner,
   cost_max: kroner,
+  // Blank input means no search.
+  q: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .default(null)
+    .transform((q) => q || null),
 });
 
 export function createApp(db: Database.Database) {
