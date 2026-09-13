@@ -5,11 +5,17 @@ import { z } from 'zod';
 import { createTaskQueries } from './taskQueries.js';
 import { TASK_CATEGORIES, TASK_STATUSES } from './types.js';
 
+const DEFAULT_PAGE_SIZE = 50;
+// Big enough to fetch every match of the 1000-task dataset in one request (the PDF export).
+const MAX_PAGE_SIZE = 1000;
+
 const isoDate = z.iso.date().nullable().default(null);
 const kroner = z.number().int().nonnegative().nullable().default(null);
 
 // Strict: an unknown key (e.g. "status" for "statuses") is a 400, not a silently ignored filter.
-const taskFilterSchema = z.strictObject({
+const searchRequestSchema = z.strictObject({
+  page: z.number().int().min(1).default(1),
+  page_size: z.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
   statuses: z.array(z.enum(TASK_STATUSES)).default([]),
   categories: z.array(z.enum(TASK_CATEGORIES)).default([]),
   property_ids: z.array(z.string()).default([]),
@@ -47,12 +53,13 @@ export function createApp(db: Database.Database) {
 
   // POST because the body is a structured filter spec (a list per column); nothing is created.
   app.post('/api/tasks/search', (req, res) => {
-    const parsed = taskFilterSchema.safeParse(req.body ?? {});
+    const parsed = searchRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      res.status(400).json({ error: 'Invalid filter', issues: parsed.error.issues });
+      res.status(400).json({ error: 'Invalid search request', issues: parsed.error.issues });
       return;
     }
-    res.json(taskQueries.search(parsed.data));
+    const { page, page_size, ...filter } = parsed.data;
+    res.json(taskQueries.search(filter, { page, page_size }));
   });
 
   // Express 5 forwards errors thrown in route handlers (sync or async) to this handler.

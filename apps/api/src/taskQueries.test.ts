@@ -3,13 +3,15 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openDatabase } from './db.js';
 import { fold } from './fold.js';
-import { createTaskQueries, type TaskFilter } from './taskQueries.js';
+import { createTaskQueries, type Pagination, type TaskFilter } from './taskQueries.js';
 import type { Task } from './types.js';
 
 const seedTasks: Task[] = JSON.parse(
   readFileSync(join(import.meta.dirname, '..', '..', '..', 'seed', 'tasks.json'), 'utf8'),
 );
 const queries = createTaskQueries(openDatabase(':memory:'));
+const allRows: Pagination = { page: 1, page_size: seedTasks.length };
+const search = (filter: TaskFilter, pagination = allRows) => queries.search(filter, pagination);
 const noFilter: TaskFilter = {
   statuses: [],
   categories: [],
@@ -55,7 +57,7 @@ function expectedIds(filter: TaskFilter): string[] {
 
 describe('task search', () => {
   it('returns every task when no filter is set', () => {
-    expect(queries.search(noFilter).total).toBe(1000);
+    expect(search(noFilter).total).toBe(1000);
   });
 
   it.each<[string, Partial<TaskFilter>]>([
@@ -82,7 +84,7 @@ describe('task search', () => {
     const filter = { ...noFilter, ...partial };
     const expected = expectedIds(filter);
 
-    const result = queries.search(filter);
+    const result = search(filter);
 
     expect(expected.length).toBeGreaterThan(0);
     expect(result.items.map((t) => t.id).sort()).toEqual(expected);
@@ -93,19 +95,19 @@ describe('task search', () => {
     const withDueDate = seedTasks.filter((t) => t.due_date !== null).length;
     const withCost = seedTasks.filter((t) => t.cost_nok !== null).length;
 
-    expect(queries.search({ ...noFilter, due_from: '1900-01-01' }).total).toBe(withDueDate);
-    expect(queries.search({ ...noFilter, cost_min: 0 }).total).toBe(withCost);
+    expect(search({ ...noFilter, due_from: '1900-01-01' }).total).toBe(withDueDate);
+    expect(search({ ...noFilter, cost_min: 0 }).total).toBe(withCost);
   });
 
   it('includes both ends of a range', () => {
     const day = seedTasks[0].created_at;
     const createdThatDay = seedTasks.filter((t) => t.created_at === day).length;
 
-    expect(queries.search({ ...noFilter, created_from: day, created_to: day }).total).toBe(createdThatDay);
+    expect(search({ ...noFilter, created_from: day, created_to: day }).total).toBe(createdThatDay);
   });
 
   it('finds the same tasks with and without æøå, in any case', () => {
-    const ids = (q: string) => queries.search({ ...noFilter, q }).items.map((t) => t.id);
+    const ids = (q: string) => search({ ...noFilter, q }).items.map((t) => t.id);
 
     const withAccents = ids('Åkerveien');
     expect(withAccents.length).toBeGreaterThan(0);
@@ -115,22 +117,61 @@ describe('task search', () => {
   });
 
   it('treats LIKE wildcards in the search as plain characters', () => {
-    expect(queries.search({ ...noFilter, q: 'lekkasje' }).total).toBeGreaterThan(0);
-    expect(queries.search({ ...noFilter, q: 'lekk_sje' }).total).toBe(0);
-    expect(queries.search({ ...noFilter, q: '%' }).total).toBe(0);
+    expect(search({ ...noFilter, q: 'lekkasje' }).total).toBeGreaterThan(0);
+    expect(search({ ...noFilter, q: 'lekk_sje' }).total).toBe(0);
+    expect(search({ ...noFilter, q: '%' }).total).toBe(0);
   });
 
   it('returns nothing for a property without tasks', () => {
-    expect(queries.search({ ...noFilter, property_ids: ['prop-028'] }).total).toBe(0);
+    expect(search({ ...noFilter, property_ids: ['prop-028'] }).total).toBe(0);
   });
 
   it('sorts newest first and breaks same-day ties by id, so the order is stable', () => {
-    const ids = queries.search(noFilter).items.map((t) => t.id);
+    const ids = search(noFilter).items.map((t) => t.id);
 
     const expected = [...seedTasks]
       .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
       .map((t) => t.id);
     expect(ids).toEqual(expected);
+  });
+});
+
+describe('pagination', () => {
+  const rejected = { ...noFilter, statuses: ['Rejected' as const] };
+  const rejectedCount = () => expectedIds(rejected).length;
+
+  it('returns one page of rows and the total across all pages', () => {
+    const result = search(noFilter, { page: 1, page_size: 50 });
+
+    expect(result.items).toHaveLength(50);
+    expect(result).toMatchObject({ total: 1000, page: 1, page_size: 50 });
+  });
+
+  it('puts every row on exactly one page, in the same order as unpaged', () => {
+    const unpaged = search(noFilter).items.map((t) => t.id);
+    const pageSize = 37; // doesn't divide 1000, so the last page is partial
+
+    const paged: string[] = [];
+    for (let page = 1; page <= Math.ceil(unpaged.length / pageSize); page++) {
+      paged.push(...search(noFilter, { page, page_size: pageSize }).items.map((t) => t.id));
+    }
+
+    expect(paged).toEqual(unpaged);
+  });
+
+  it('pages within the filtered rows', () => {
+    const result = search(rejected, { page: 2, page_size: 20 });
+
+    expect(result.items).toHaveLength(rejectedCount() - 20);
+    expect(result.items.every((t) => t.status === 'Rejected')).toBe(true);
+    expect(result.total).toBe(rejectedCount());
+  });
+
+  it('still reports the total for a page past the end', () => {
+    const result = search(rejected, { page: 5, page_size: 20 });
+
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(rejectedCount());
   });
 });
 

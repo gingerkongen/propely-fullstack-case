@@ -6,16 +6,42 @@ import { openDatabase } from './db.js';
 const newApp = () => createApp(openDatabase(':memory:'));
 
 describe('POST /api/tasks/search', () => {
-  it('returns every task, with its property name, for an empty filter', async () => {
+  it('returns the first page of 50 and the total for an empty body', async () => {
     const res = await request(newApp()).post('/api/tasks/search').send({});
 
     expect(res.status).toBe(200);
-    expect(res.body.total).toBe(1000);
-    expect(res.body.items).toHaveLength(1000);
+    expect(res.body).toMatchObject({ total: 1000, page: 1, page_size: 50 });
+    expect(res.body.items).toHaveLength(50);
+  });
+
+  it('returns the requested page', async () => {
+    const res = await request(newApp())
+      .post('/api/tasks/search')
+      .send({ page: 3, page_size: 10 });
+
+    expect(res.body).toMatchObject({ total: 1000, page: 3, page_size: 10 });
+    expect(res.body.items).toHaveLength(10);
+  });
+
+  it('includes the property name on each task', async () => {
+    const res = await request(newApp())
+      .post('/api/tasks/search')
+      .send({ page_size: 1000 });
+
     expect(res.body.items.find((t: { id: string }) => t.id === 'task-0001')).toMatchObject({
       property_id: 'prop-004',
       property_name: 'Torvhaugen Næringsbygg',
     });
+  });
+
+  it.each([
+    ['page 0', { page: 0 }],
+    ['a fractional page size', { page_size: 2.5 }],
+    ['a page size above 1000', { page_size: 1001 }],
+  ])('rejects %s', async (_name, body) => {
+    const res = await request(newApp()).post('/api/tasks/search').send(body);
+
+    expect(res.status).toBe(400);
   });
 
   it('applies the filter from the body', async () => {
