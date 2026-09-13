@@ -11,10 +11,14 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchTasks().then((result) => {
-      setTasks(result);
-      setTaskCount(result.length);
-    });
+    fetchTasks()
+      .then((result) => {
+        setTasks(result);
+        setTaskCount(result.length);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
   }, []);
 
   return (
