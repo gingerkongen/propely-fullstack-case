@@ -3,7 +3,7 @@ import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import { z } from 'zod';
 import { createTaskQueries } from './taskQueries.js';
-import { TASK_CATEGORIES, TASK_STATUSES, type TaskWithProperty } from './types.js';
+import { TASK_CATEGORIES, TASK_STATUSES } from './types.js';
 
 const isoDate = z.iso.date().nullable().default(null);
 const kroner = z.number().int().nonnegative().nullable().default(null);
@@ -22,11 +22,6 @@ const taskFilterSchema = z.strictObject({
 });
 
 export function createApp(db: Database.Database) {
-  const selectAllTasks = db.prepare<[], TaskWithProperty>(`
-    SELECT t.*, p.name AS property_name
-    FROM tasks t
-    JOIN properties p ON p.id = t.property_id
-  `);
   const taskQueries = createTaskQueries(db);
 
   const app = express();
@@ -36,10 +31,6 @@ export function createApp(db: Database.Database) {
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
-  });
-
-  app.get('/api/tasks', (_req, res) => {
-    res.json(selectAllTasks.all());
   });
 
   app.get('/api/tasks/filter-options', (_req, res) => {

@@ -5,40 +5,6 @@ import { openDatabase } from './db.js';
 
 const newApp = () => createApp(openDatabase(':memory:'));
 
-describe('GET /api/tasks', () => {
-  it('returns every seeded task', async () => {
-    const app = createApp(openDatabase(':memory:'));
-
-    const res = await request(app).get('/api/tasks');
-
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1000);
-  });
-
-  it('includes the property name on each task', async () => {
-    const app = createApp(openDatabase(':memory:'));
-
-    const res = await request(app).get('/api/tasks');
-
-    const task = res.body.find((t: { id: string }) => t.id === 'task-0001');
-    expect(task).toMatchObject({ property_id: 'prop-004', property_name: 'Torvhaugen Næringsbygg' });
-  });
-
-  it('responds 500 instead of an empty list when the database fails', async () => {
-    const db = openDatabase(':memory:');
-    const app = createApp(db);
-    db.close();
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const res = await request(app).get('/api/tasks');
-
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: 'Internal server error' });
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
-  });
-});
-
 describe('POST /api/tasks/search', () => {
   it('returns every task, with its property name, for an empty filter', async () => {
     const res = await request(newApp()).post('/api/tasks/search').send({});
