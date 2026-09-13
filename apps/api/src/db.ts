@@ -79,13 +79,14 @@ function buildFromSeed(db: Database.Database): void {
   insertAll();
 
   console.log(
-    `Built ${DB_PATH} from seed (${properties.length} properties, ${tasks.length} tasks).`,
+    `Built ${db.name} from seed (${properties.length} properties, ${tasks.length} tasks).`,
   );
 }
 
-export function openDatabase(): Database.Database {
-  const needsSeed = !existsSync(DB_PATH);
-  const db = new Database(DB_PATH);
+/** Opens (and seeds, if new) the database. Tests pass ':memory:' for a fresh, isolated copy. */
+export function openDatabase(path: string = DB_PATH): Database.Database {
+  const needsSeed = !existsSync(path);
+  const db = new Database(path);
   db.pragma('foreign_keys = ON');
 
   if (needsSeed) {
