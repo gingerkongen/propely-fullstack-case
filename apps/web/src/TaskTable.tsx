@@ -15,7 +15,7 @@ const COLUMNS = [
 /** Renders every task in a plain table. No filtering or pagination. */
 export function TaskTable({ tasks }: { tasks: Task[] }) {
   // Newest first.
-  const rows = tasks.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const rows = [...tasks].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   return (
     <div className="overflow-x-auto rounded border border-slate-200 bg-white">
