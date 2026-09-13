@@ -13,6 +13,15 @@ describe('GET /api/tasks', () => {
     expect(res.body).toHaveLength(1000);
   });
 
+  it('includes the property name on each task', async () => {
+    const app = createApp(openDatabase(':memory:'));
+
+    const res = await request(app).get('/api/tasks');
+
+    const task = res.body.find((t: { id: string }) => t.id === 'task-0001');
+    expect(task).toMatchObject({ property_id: 'prop-004', property_name: 'Torvhaugen Næringsbygg' });
+  });
+
   it('responds 500 instead of an empty list when the database fails', async () => {
     const db = openDatabase(':memory:');
     const app = createApp(db);
