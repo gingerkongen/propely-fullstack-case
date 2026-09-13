@@ -30,8 +30,8 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((task, index) => (
-            <tr key={index} className="border-t border-slate-200 align-top">
+          {rows.map((task) => (
+            <tr key={task.id} className="border-t border-slate-200 align-top">
               <td className="whitespace-nowrap px-3 py-2 font-mono text-xs text-slate-500">
                 {task.id}
               </td>
