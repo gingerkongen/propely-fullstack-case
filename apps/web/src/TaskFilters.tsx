@@ -36,6 +36,21 @@ function summarizeRange(from: string | number | null, to: string | number | null
   return `${from} – ${to}${unit}`;
 }
 
+/** The active filters in words, one entry each, e.g. "Status: Avvist, Ny". Used in the PDF header. */
+export function describeFilter(filter: TaskFilter, options: FilterOptions): string[] {
+  const propertyNames = new Map(options.properties.map((p) => [p.id, p.name]));
+  const described: [string, string | null][] = [
+    ['Søk', filter.q && `«${filter.q}»`],
+    ['Status', filter.statuses.map((status) => STATUS_LABELS[status]).join(', ')],
+    ['Kategori', filter.categories.map((category) => CATEGORY_LABELS[category]).join(', ')],
+    ['Eiendom', filter.property_ids.map((id) => propertyNames.get(id) ?? id).join(', ')],
+    ['Opprettet', summarizeRange(filter.created_from, filter.created_to)],
+    ['Frist', summarizeRange(filter.due_from, filter.due_to)],
+    ['Kostnad', summarizeRange(filter.cost_min, filter.cost_max, ' kr')],
+  ];
+  return described.filter(([, value]) => value).map(([label, value]) => `${label}: ${value}`);
+}
+
 interface TaskFiltersProps {
   options: FilterOptions;
   filter: TaskFilter;

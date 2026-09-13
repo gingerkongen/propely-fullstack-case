@@ -4,6 +4,7 @@ import type { FilterOptions, TaskFilter, TaskSearchResult } from './types';
 
 import { fetchFilterOptions, searchTasks } from './api';
 import { Pagination } from './Pagination';
+import { PdfExport } from './PdfExport';
 import { EMPTY_FILTER, TaskFilters } from './TaskFilters';
 import { TaskTable } from './TaskTable';
 import { useDebouncedValue } from './useDebouncedValue';
@@ -17,6 +18,8 @@ export function App() {
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<TaskSearchResult | null>(null);
+  // The filter behind `result`. While a new search is pending, `filter` is already ahead of the screen.
+  const [resultFilter, setResultFilter] = useState<TaskFilter>(EMPTY_FILTER);
   const [error, setError] = useState<string | null>(null);
 
   // A new filter means a new set of rows, so start again from the first page.
@@ -47,6 +50,7 @@ export function App() {
     searchTasks(debouncedQuery, controller.signal)
       .then((next) => {
         setResult(next);
+        setResultFilter(debouncedQuery);
         setError(null);
       })
       .catch((err: unknown) => {
@@ -57,11 +61,16 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <header className="border-b border-slate-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold">Vedlikeholdsoppgaver</h1>
-        <p className="text-sm text-slate-500">
-          {result ? `${result.total} oppgaver` : 'Laster oppgaver …'}
-        </p>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
+        <div>
+          <h1 className="text-lg font-semibold">Vedlikeholdsoppgaver</h1>
+          <p className="text-sm text-slate-500">
+            {result ? `${result.total} oppgaver` : 'Laster oppgaver …'}
+          </p>
+        </div>
+        {options && result && result.total > 0 && (
+          <PdfExport result={result} filter={resultFilter} options={options} />
+        )}
       </header>
 
       <main className="p-6">
