@@ -23,6 +23,7 @@ export interface Task {
   category: TaskCategory;
   status: TaskStatus;
   property_id: string;
+  property_name: string;
   created_at: string;
   due_date: string | null;
   cost_nok: number | null;
