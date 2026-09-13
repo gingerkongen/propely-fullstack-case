@@ -47,6 +47,8 @@ export interface TaskFilter {
   /** Whole kroner, both ends inclusive. */
   cost_min: number | null;
   cost_max: number | null;
+  /** Free text, matched anywhere in the title or property name, with or without æøå. */
+  q: string | null;
 }
 
 export interface TaskSearchResult {

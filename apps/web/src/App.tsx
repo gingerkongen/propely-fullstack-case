@@ -5,6 +5,7 @@ import type { FilterOptions, TaskFilter, TaskSearchResult } from './types';
 import { fetchFilterOptions, searchTasks } from './api';
 import { EMPTY_FILTER, TaskFilters } from './TaskFilters';
 import { TaskTable } from './TaskTable';
+import { useDebouncedValue } from './useDebouncedValue';
 
 const toMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -20,10 +21,13 @@ export function App() {
       .catch((err: unknown) => setError(toMessage(err)));
   }, []);
 
+  // Typing in the search or cost fields changes the filter on every keystroke; search once it pauses.
+  const debouncedFilter = useDebouncedValue(filter, 250);
+
   useEffect(() => {
     // Abort the previous search so a slow, outdated response can't overwrite a newer one.
     const controller = new AbortController();
-    searchTasks(filter, controller.signal)
+    searchTasks(debouncedFilter, controller.signal)
       .then((next) => {
         setResult(next);
         setError(null);
@@ -32,7 +36,7 @@ export function App() {
         if (!controller.signal.aborted) setError(toMessage(err));
       });
     return () => controller.abort();
-  }, [filter]);
+  }, [debouncedFilter]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

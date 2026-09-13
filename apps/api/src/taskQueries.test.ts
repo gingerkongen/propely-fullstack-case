@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openDatabase } from './db.js';
+import { fold } from './fold.js';
 import { createTaskQueries, type TaskFilter } from './taskQueries.js';
 import type { Task } from './types.js';
 
@@ -19,7 +20,13 @@ const noFilter: TaskFilter = {
   due_to: null,
   cost_min: null,
   cost_max: null,
+  q: null,
 };
+const propertyNames = new Map<string, string>(
+  JSON.parse(readFileSync(join(import.meta.dirname, '..', '..', '..', 'seed', 'properties.json'), 'utf8')).map(
+    (p: { id: string; name: string }) => [p.id, p.name],
+  ),
+);
 
 /** No bounds matches everything; with a bound, a missing value never matches. */
 function inRange<T extends string | number>(value: T | null, from: T | null, to: T | null): boolean {
@@ -37,7 +44,10 @@ function expectedIds(filter: TaskFilter): string[] {
         (filter.property_ids.length === 0 || filter.property_ids.includes(t.property_id)) &&
         inRange(t.created_at, filter.created_from, filter.created_to) &&
         inRange(t.due_date, filter.due_from, filter.due_to) &&
-        inRange(t.cost_nok, filter.cost_min, filter.cost_max),
+        inRange(t.cost_nok, filter.cost_min, filter.cost_max) &&
+        (filter.q === null ||
+          fold(t.title).includes(fold(filter.q)) ||
+          fold(propertyNames.get(t.property_id)!).includes(fold(filter.q))),
     )
     .map((t) => t.id)
     .sort();
@@ -65,6 +75,9 @@ describe('task search', () => {
       'lists and ranges together',
       { statuses: ['New', 'InProgress'], created_from: '2025-01-01', cost_min: 5000 },
     ],
+    ['a search in titles', { q: 'lekkasje' }],
+    ['a search in property names', { q: 'bryggekanten' }],
+    ['a search with filters', { q: 'sameiet', statuses: ['New'], cost_min: 10000 }],
   ])('matches the seed data for %s', (_name, partial) => {
     const filter = { ...noFilter, ...partial };
     const expected = expectedIds(filter);
@@ -89,6 +102,22 @@ describe('task search', () => {
     const createdThatDay = seedTasks.filter((t) => t.created_at === day).length;
 
     expect(queries.search({ ...noFilter, created_from: day, created_to: day }).total).toBe(createdThatDay);
+  });
+
+  it('finds the same tasks with and without æøå, in any case', () => {
+    const ids = (q: string) => queries.search({ ...noFilter, q }).items.map((t) => t.id);
+
+    const withAccents = ids('Åkerveien');
+    expect(withAccents.length).toBeGreaterThan(0);
+    expect(ids('akerveien')).toEqual(withAccents);
+    expect(ids('ÅKERVEIEN')).toEqual(withAccents);
+    expect(ids('blåbær')).toEqual(ids('BLABAER'));
+  });
+
+  it('treats LIKE wildcards in the search as plain characters', () => {
+    expect(queries.search({ ...noFilter, q: 'lekkasje' }).total).toBeGreaterThan(0);
+    expect(queries.search({ ...noFilter, q: 'lekk_sje' }).total).toBe(0);
+    expect(queries.search({ ...noFilter, q: '%' }).total).toBe(0);
   });
 
   it('returns nothing for a property without tasks', () => {
