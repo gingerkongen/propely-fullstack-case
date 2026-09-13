@@ -1,4 +1,4 @@
-import type { FilterOptions, TaskFilter, TaskSearchResult } from './types';
+import type { FilterOptions, Pagination, TaskFilter, TaskSearchResult } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -14,11 +14,14 @@ export function fetchFilterOptions(): Promise<FilterOptions> {
   return request('/api/tasks/filter-options');
 }
 
-export function searchTasks(filter: TaskFilter, signal?: AbortSignal): Promise<TaskSearchResult> {
+export function searchTasks(
+  query: TaskFilter & Pagination,
+  signal?: AbortSignal,
+): Promise<TaskSearchResult> {
   return request('/api/tasks/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(filter),
+    body: JSON.stringify(query),
     signal,
   });
 }
