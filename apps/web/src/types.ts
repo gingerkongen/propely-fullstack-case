@@ -51,8 +51,15 @@ export interface TaskFilter {
   q: string | null;
 }
 
-export interface TaskSearchResult {
+/** 1-based page number and rows per page. */
+export interface Pagination {
+  page: number;
+  page_size: number;
+}
+
+export interface TaskSearchResult extends Pagination {
   items: Task[];
+  /** Matches across all pages. */
   total: number;
 }
 
